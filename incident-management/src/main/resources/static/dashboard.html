@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Incident Management Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .card {
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        .navbar {
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .severity-CRITICAL { background-color: #dc3545; color: white; }
+        .severity-HIGH { background-color: #fd7e14; color: white; }
+        .severity-MEDIUM { background-color: #ffc107; color: black; }
+        .severity-LOW { background-color: #28a745; color: white; }
+        .incident-card {
+            transition: transform 0.2s;
+            cursor: pointer;
+        }
+        .incident-card:hover {
+            transform: translateY(-5px);
+        }
+        .ai-score {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .login-container {
+            max-width: 400px;
+            margin: 100px auto;
+        }
+        .dashboard-container {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Login Screen -->
+<div id="loginScreen" class="container">
+    <div class="login-container">
+        <div class="card">
+            <div class="card-body p-5">
+                <h2 class="text-center mb-4">🔐 Incident Management</h2>
+                <div class="alert alert-danger d-none" id="loginError">Invalid credentials!</div>
+                <input type="text" id="username" class="form-control mb-3" placeholder="Username">
+                <input type="password" id="password" class="form-control mb-3" placeholder="Password">
+                <button class="btn btn-primary w-100" onclick="login()">Login</button>
+                <hr>
+                <div class="text-center text-muted small">
+                    <p>Test Users:</p>
+                    <p>admin/admin123 | engineer/engineer123 | user/user123</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Dashboard -->
+<div id="dashboardScreen" class="dashboard-container">
+    <nav class="navbar navbar-expand-lg px-4">
+        <div class="container-fluid">
+            <a class="navbar-brand fw-bold" href="#">🚨 Incident Management System</a>
+            <div class="ms-auto">
+                <span class="badge bg-primary me-2" id="userRole"></span>
+                <span id="userName" class="me-3"></span>
+                <button class="btn btn-outline-danger btn-sm" onclick="logout()">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Stats Row -->
+        <div class="row mb-4" id="statsRow">
+            <div class="col-md-3">
+                <div class="card text-center p-3">
+                    <h3 id="totalCount">0</h3>
+                    <p>Total Incidents</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center p-3">
+                    <h3 id="criticalCount">0</h3>
+                    <p>Critical</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center p-3">
+                    <h3 id="openCount">0</h3>
+                    <p>Open</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center p-3">
+                    <h3 id="resolvedCount">0</h3>
+                    <p>Resolved</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create Incident Form -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">➕ Create New Incident</div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <input type="text" id="incidentTitle" class="form-control" placeholder="Title">
+                    </div>
+                    <div class="col-md-12 mt-2">
+                        <textarea id="incidentDesc" class="form-control" rows="2" placeholder="Description"></textarea>
+                    </div>
+                    <div class="col-md-12 mt-2">
+                        <button class="btn btn-primary" onclick="createIncident()">Create (AI will score)</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Incidents List -->
+        <div class="card">
+            <div class="card-header bg-info text-white">📋 All Incidents</div>
+            <div class="card-body" id="incidentsList">
+                <div class="text-center">Loading...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentUser = null;
+    let allIncidents = [];
+
+    async function login() {
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        
+        try {
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username, password})
+            });
+            
+            if (response.ok) {
+                currentUser = await response.json();
+                document.getElementById('loginScreen').style.display = 'none';
+                document.getElementById('dashboardScreen').style.display = 'block';
+                document.getElementById('userName').innerText = currentUser.username;
+                document.getElementById('userRole').innerText = currentUser.role;
+                loadIncidents();
+                setInterval(loadIncidents, 30000);
+            } else {
+                document.getElementById('loginError').classList.remove('d-none');
+            }
+        } catch (error) {
+            document.getElementById('loginError').classList.remove('d-none');
+        }
+    }
+
+    async function loadIncidents() {
+        try {
+            const response = await fetch('/api/incidents');
+            allIncidents = await response.json();
+            updateUI();
+        } catch (error) {
+            console.error('Error loading incidents:', error);
+        }
+    }
+
+    function updateUI() {
+        const incidentsList = document.getElementById('incidentsList');
+        
+        if (allIncidents.length === 0) {
+            incidentsList.innerHTML = '<div class="text-center text-muted">No incidents found</div>';
+            return;
+        }
+        
+        incidentsList.innerHTML = allIncidents.map(incident => `
+            <div class="card mb-2 incident-card">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5 class="mb-1">${incident.title}</h5>
+                            <small class="text-muted">${incident.description}</small>
+                            <br>
+                            <small>Created by: ${incident.createdBy} | ${new Date(incident.createdAt).toLocaleString()}</small>
+                        </div>
+                        <div class="col-md-3">
+                            <span class="badge severity-${incident.severity} p-2">${incident.severity}</span>
+                            <span class="badge bg-secondary ms-1">Score: ${incident.aiScore}</span>
+                            <br>
+                            <select class="form-select form-select-sm mt-2 status-select" data-id="${incident.id}">
+                                <option ${incident.status === 'OPEN' ? 'selected' : ''}>OPEN</option>
+                                <option ${incident.status === 'IN_PROGRESS' ? 'selected' : ''}>IN_PROGRESS</option>
+                                <option ${incident.status === 'RESOLVED' ? 'selected' : ''}>RESOLVED</option>
+                                <option ${incident.status === 'CLOSED' ? 'selected' : ''}>CLOSED</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 text-end">
+                            <span class="badge bg-${incident.status === 'OPEN' ? 'danger' : incident.status === 'IN_PROGRESS' ? 'warning' : 'success'} p-2">
+                                ${incident.status}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+        
+        document.querySelectorAll('.status-select').forEach(select => {
+            select.addEventListener('change', (e) => {
+                updateStatus(select.dataset.id, select.value);
+            });
+        });
+        
+        document.getElementById('totalCount').innerText = allIncidents.length;
+        document.getElementById('criticalCount').innerText = allIncidents.filter(i => i.severity === 'CRITICAL').length;
+        document.getElementById('openCount').innerText = allIncidents.filter(i => i.status === 'OPEN').length;
+        document.getElementById('resolvedCount').innerText = allIncidents.filter(i => i.status === 'RESOLVED').length;
+    }
+    
+    async function updateStatus(id, status) {
+        try {
+            await fetch(`/api/incidents/${id}/status`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({status})
+            });
+            loadIncidents();
+        } catch (error) {
+            console.error('Error updating status:', error);
+        }
+    }
+    
+    async function createIncident() {
+        const title = document.getElementById('incidentTitle').value;
+        const description = document.getElementById('incidentDesc').value;
+        
+        if (!title) {
+            alert('Title is required');
+            return;
+        }
+        
+        try {
+            await fetch('/api/incidents', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({title, description})
+            });
+            document.getElementById('incidentTitle').value = '';
+            document.getElementById('incidentDesc').value = '';
+            loadIncidents();
+        } catch (error) {
+            console.error('Error creating incident:', error);
+        }
+    }
+    
+    function logout() {
+        currentUser = null;
+        document.getElementById('loginScreen').style.display = 'block';
+        document.getElementById('dashboardScreen').style.display = 'none';
+        document.getElementById('username').value = '';
+        document.getElementById('password').value = '';
+    }
+</script>
+</body>
+</html>
