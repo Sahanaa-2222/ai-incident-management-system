@@ -1,0 +1,43 @@
+### Create a new incident (AI will score it as HIGH because of "database" and "down")
+POST http://localhost:8080/api/incidents
+Content-Type: application/json
+
+{
+    "title": "Database server is down",
+    "description": "Cannot connect to MySQL database, users are unable to login"
+}
+### Get all incidents
+GET http://localhost:8080/api/incidents
+### Create a LOW severity incident
+POST http://localhost:8080/api/incidents
+Content-Type: application/json
+
+{
+    "title": "Need help with password reset",
+    "description": "User forgot their password, can't login to portal"
+}
+### Update to IN_PROGRESS
+PUT http://localhost:8080/api/incidents/1/status
+Content-Type: application/json
+
+{
+    "status": "IN_PROGRESS"
+}
+### Create a LOW severity incident
+POST http://localhost:8080/api/incidents
+Content-Type: application/json
+
+{
+    "title": "Typo on homepage footer",
+    "description": "There is a spelling mistake in the copyright text"
+}
+### What severity will this get?
+POST http://localhost:8080/api/incidents
+Content-Type: application/json
+
+{
+    "title": "Security breach! Customer data exposed",
+    "description": "Unauthorized access detected, sensitive customer information may have been leaked"
+}
+### Get all incidents
+GET http://localhost:8080/api/incidents
